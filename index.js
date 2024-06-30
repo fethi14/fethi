@@ -13,9 +13,10 @@ const {
   TextInputStyle,
   PermissionsBitField,
   Partials,
+  AttachmentBuilder,
 } = require("discord.js");
 
-// Initialize Discord Client
+// تهيئة عميل Discord
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -27,21 +28,25 @@ const client = new Client({
   partials: [Partials.GuildMember],
 });
 
-// Log in to Discord
+// تسجيل الدخول إلى الخلاف
 client.login(process.env.TOKEN).catch((error) => {
   console.error("Failed to login:", error);
 });
 
-// Bot is ready
+// بوت جاهز
 client.once("ready", () => {
   console.log("Bot is Ready!");
   console.log("Code by GHERNAT FETHI");
   console.log("discord.gg/wicks");
 });
 
-// Handle message creation
+// التعامل مع إنشاء الرسالة
 client.on("messageCreate", async (message) => {
+  console.log("Received message:", message.content);  // سجل التصحيح
+
   if (!message.content.startsWith("/grt") || message.author.bot) return;
+
+  console.log("Command recognized");  // سجل التصحيح
 
   const allowedRoleId = process.env.ALLOWED_ROLE_ID || config.allowedRoleId;
   const member = message.guild.members.cache.get(message.author.id);
@@ -53,6 +58,8 @@ client.on("messageCreate", async (message) => {
     });
   }
 
+  console.log("Permission granted");  // سجل التصحيح
+
   const embed = await createEmbed(message.guild);
   const row = createActionRow();
 
@@ -63,7 +70,7 @@ client.on("messageCreate", async (message) => {
   });
 });
 
-// Handle interactions
+// التعامل مع التفاعلات
 client.on("interactionCreate", async (interaction) => {
   try {
     if (interaction.isButton()) {
@@ -80,7 +87,7 @@ client.on("interactionCreate", async (interaction) => {
   }
 });
 
-// Function to check permissions
+// وظيفة للتحقق من الأذونات
 function hasPermission(member, allowedRoleId) {
   return (
     member.roles.cache.has(allowedRoleId) ||
@@ -88,7 +95,7 @@ function hasPermission(member, allowedRoleId) {
   );
 }
 
-// Function to create embed message
+// وظيفة لإنشاء رسالة تضمين مخصصة
 async function createEmbed(guild) {
   const { onlineCount, offlineCount } = await getOnlineOfflineCounts(guild);
 
@@ -105,13 +112,13 @@ async function createEmbed(guild) {
     .setThumbnail("https://j.top4top.io/p_30913rquz1.png")
     .setImage("https://a.top4top.io/p_3098arx7m1.jpg")
     .setFooter({
-      text: "Developed by GHERNAT FETHI",
+      text: "تم التطوير بواسطة GHERNAT FETHI",
       iconURL: "https://k.top4top.io/p_3096rmb6x1.gif",
     })
     .setTimestamp();
 }
 
-// Function to get the counts of online and offline members
+// وظيفة للحصول على أعداد الأعضاء المتصلين وغير المتصلين
 async function getOnlineOfflineCounts(guild) {
   const members = await guild.members.fetch();
   let onlineCount = 0;
@@ -129,7 +136,7 @@ async function getOnlineOfflineCounts(guild) {
   return { onlineCount, offlineCount };
 }
 
-// Function to create action row with buttons
+// وظيفة لإنشاء صف عمل باستخدام الأزرار
 function createActionRow() {
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder()
@@ -147,7 +154,7 @@ function createActionRow() {
   );
 }
 
-// Handle button interactions
+// التعامل مع تفاعلات الزر
 async function handleButtonInteraction(interaction) {
   const customIdMap = {
     send_all: "modal_all",
@@ -167,14 +174,24 @@ async function handleButtonInteraction(interaction) {
     .setLabel("✒️ اكتب رسالتك هنا")
     .setStyle(TextInputStyle.Paragraph);
 
-  modal.addComponents(new ActionRowBuilder().addComponents(messageInput));
+  const fileInput = new TextInputBuilder()
+    .setCustomId("fileInput")
+    .setLabel("📎 ضع رابط الملف هنا (اختياري)")
+    .setStyle(TextInputStyle.Short)
+    .setRequired(false);
+
+  modal.addComponents(
+    new ActionRowBuilder().addComponents(messageInput),
+    new ActionRowBuilder().addComponents(fileInput)
+  );
 
   await interaction.showModal(modal);
 }
 
-// Handle modal submissions
+// التعامل مع التقديمات المشروطة
 async function handleModalSubmit(interaction) {
   const message = interaction.fields.getTextInputValue("messageInput");
+  const fileUrl = interaction.fields.getTextInputValue("fileInput");
   const guild = interaction.guild;
   if (!guild) return;
 
@@ -186,9 +203,38 @@ async function handleModalSubmit(interaction) {
 
   const sendMessages = membersToSend.map(async (member) => {
     try {
+      const messageEmbed = new EmbedBuilder()
+        .setColor("#00ff00")
+        .setTitle("رسالة جديدة")
+        .setDescription(message)
+        .setFooter({
+          text: "تم التطوير بواسطة GHERNAT FETHI",
+        })
+        .setTimestamp();
+
+      const attachments = [];
+
+      if (fileUrl) {
+        attachments.push(new AttachmentBuilder(fileUrl));
+      }
+
+      const actionRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setLabel("YouTube")
+          .setURL("https://www.youtube.com/")
+          .setStyle(ButtonStyle.Link),
+        new ButtonBuilder()
+          .setLabel("Facebook")
+          .setURL("https://www.facebook.com/")
+          .setStyle(ButtonStyle.Link)
+      );
+
       await member.send({
-        content: `${message}\n<@${member.user.id}>`,
+        embeds: [messageEmbed],
+        files: attachments,
+        content: `<@${member.user.id}>`,
         allowedMentions: { parse: ["users"] },
+        components: [actionRow]
       });
     } catch (error) {
       console.error(`Error sending message to ${member.user.tag}:`, error);
@@ -202,7 +248,7 @@ async function handleModalSubmit(interaction) {
   });
 }
 
-// Function to filter members based on interaction type
+// وظيفة لتصفية الأعضاء بناءً على نوع التفاعل
 function filterMembers(members, customId) {
   return members.filter((member) => {
     if (member.user.bot) return false;
